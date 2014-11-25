@@ -49,19 +49,19 @@ public class PA2
       stmt.executeUpdate("CREATE TABLE Connected(Airline char(32), Origin char(32), Destination char(32), Stops INT);");
       stmt.executeUpdate("INSERT INTO Connected(Airline, Origin, Destination) SELECT Airline, Origin, Destination FROM Flight;");
 
-      int count = 0;
-
       // create Delta table and fill with tuples from Flight
       stmt.executeUpdate("DROP TABLE IF EXISTS Delta;");
       stmt.executeUpdate("CREATE TABLE Delta(Airline, Origin, Destination);");
       stmt.executeUpdate("INSERT INTO Delta(Airline, Origin, Destination) SELECT Airline, Origin, Destination FROM Flight;");
 
-      ResultSet rsetDelta = stmt.executeQuery("SELECT * FROM Delta;");
+      // 
+      ResultSet rsetD = stmt.executeQuery("SELECT * FROM Delta;");
       ResultSet rsetC = cStmt.executeQuery("SELECT * FROM Connected;");
       pStmt.executeUpdate("DROP TABLE IF EXISTS Prev;");
       pStmt.executeUpdate("CREATE TABLE Prev(Airline, Origin, Destination, Stops);");			
-      
-      while(rsetDelta.next())
+
+      int count = 0; // used to update the count on stopovers
+      while(rsetD.next()) // while Delta is not empty do the following
       {
         if(count == 0)
         {
@@ -81,22 +81,23 @@ public class PA2
           // now fill Delta with Connected - Prev which leaves us with the flights that have increased stopovers
           dStmt.executeUpdate("INSERT INTO Delta SELECT Airline, Origin, Destination FROM Connected EXCEPT SELECT Airline, Origin, Destination FROM Prev;");	
         }
-        rsetDelta = stmt.executeQuery("SELECT * FROM Delta;");	
+        rsetD = stmt.executeQuery("SELECT * FROM Delta;");	
         count++;
       } 
 
+      // update the Connected with the minimum stopovers
       cStmt.executeUpdate("DROP TABLE IF EXISTS Delta;");
       cStmt.executeUpdate("DROP TABLE IF EXISTS Connected;");
       cStmt.executeUpdate("CREATE TABLE Connected(Airline char(32), Origin char(32), Destination char(32), Stops INT);");
       cStmt.executeUpdate("INSERT INTO Connected SELECT Airline, Origin, Destination, MIN(Stops) FROM Connected GROUP BY Airline, Origin, Destination ;");
-      
+
       // Close the ResultSet and Statement objects.
       stmt.close();
       cStmt.close();
       dStmt.close();
       pStmt.close();
       rset.close();
-      rsetDelta.close();
+      rsetD.close();
       rsetC.close();
     }
     catch (Exception e)
