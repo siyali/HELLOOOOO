@@ -44,44 +44,45 @@ public class PA2
       Statement pStmt = conn.createStatement(); // for the Prev table
       Statement dStmt = conn.createStatement(); // for the Delta table
 
-      // create Connected table and fill with tuples from Flight
-      stmt.executeUpdate("DROP TABLE IF EXISTS Connected;");
-      stmt.executeUpdate("CREATE TABLE Connected(Airline char(32), Origin char(32), Destination char(32), Stops INT);");
-      stmt.executeUpdate("INSERT INTO Connected(Airline, Origin, Destination) SELECT Airline, Origin, Destination FROM Flight;");
+      // create Curr table and fill with tuples from Flight
+      stmt.executeUpdate("DROP TABLE IF EXISTS Curr;");
+      stmt.executeUpdate("CREATE TABLE Curr(Airline char(32), Origin char(32), Destination char(32), Stops INT);");
+      stmt.executeUpdate("INSERT INTO Curr(Airline, Origin, Destination) SELECT Airline, Origin, Destination FROM Flight;");
 
       // create Delta table and fill with tuples from Flight
       stmt.executeUpdate("DROP TABLE IF EXISTS Delta;");
       stmt.executeUpdate("CREATE TABLE Delta(Airline, Origin, Destination);");
       stmt.executeUpdate("INSERT INTO Delta(Airline, Origin, Destination) SELECT Airline, Origin, Destination FROM Flight;");
 
-      // 
-      ResultSet rsetD = stmt.executeQuery("SELECT * FROM Delta;");
-      ResultSet rsetC = cStmt.executeQuery("SELECT * FROM Connected;");
+      ResultSet rsetD = dStmt.executeQuery("SELECT COUNT(*) FROM Delta;");
+      ResultSet rsetC = cStmt.executeQuery("SELECT COUNT(*) FROM Curr;");
       pStmt.executeUpdate("DROP TABLE IF EXISTS Prev;");
       pStmt.executeUpdate("CREATE TABLE Prev(Airline, Origin, Destination, Stops);");			
 
       int count = 0; // used to update the count on stopovers
-      while(rsetD.next()) // while Delta is not empty do the following
+      int deltaSize = rsetD.getInt(1);
+      while(deltaSize > 0) // while Delta is not empty do the following
       {
         if(count == 0)
         {
-          cStmt.executeUpdate("INSERT INTO Connected SELECT *," + count + " FROM Flight;" );
-          cStmt.executeUpdate("DELETE FROM Connected WHERE Connected.Stops IS NULL;");
+          cStmt.executeUpdate("INSERT INTO Curr SELECT *," + count + " FROM Flight;" );
+          cStmt.executeUpdate("DELETE FROM Curr WHERE Curr.Stops IS NULL;");
         }
         else
         {
           // delete everything in Prev
           pStmt.executeUpdate("DELETE FROM Prev;");
-          // now fill Prev with tuples from Connected
-          pStmt.executeUpdate("INSERT INTO Prev SELECT * FROM Connected;");
-          cStmt.executeUpdate("INSERT INTO Connected SELECT d.Airline, d.Origin, f.Destination,"+ count + " FROM  Flight f, Delta d WHERE f.Origin = d.Destination AND d.Airline = f.Airline AND d.Origin <> f.Destination;");
-          rsetC = cStmt.executeQuery("SELECT * FROM Connected;");
+          // now fill Prev with tuples from Curr
+          pStmt.executeUpdate("INSERT INTO Prev SELECT * FROM Curr;");
+          cStmt.executeUpdate("INSERT INTO Curr SELECT d.Airline, d.Origin, f.Destination,"+ count + " FROM  Flight f, Delta d WHERE f.Origin = d.Destination AND d.Airline = f.Airline AND d.Origin <> f.Destination;");
+          rsetC = cStmt.executeQuery("SELECT * FROM Curr;");
           // delete everything in Delta
-          dStmt.executeUpdate("DELETE  FROM Delta;");
-          // now fill Delta with Connected - Prev which leaves us with the flights that have increased stopovers
-          dStmt.executeUpdate("INSERT INTO Delta SELECT Airline, Origin, Destination FROM Connected EXCEPT SELECT Airline, Origin, Destination FROM Prev;");	
+          dStmt.executeUpdate("DELETE FROM Delta;");
+          // now fill Delta with Curr - Prev which leaves us with the flights that have increased stopovers
+          dStmt.executeUpdate("INSERT INTO Delta SELECT Airline, Origin, Destination FROM Curr EXCEPT SELECT Airline, Origin, Destination FROM Prev;");	
         }
-        rsetD = stmt.executeQuery("SELECT * FROM Delta;");	
+        rsetD = stmt.executeQuery("SELECT COUNT(*) FROM Delta;");
+        deltaSize = rsetD.getInt(1);
         count++;
       } 
 
@@ -89,7 +90,7 @@ public class PA2
       cStmt.executeUpdate("DROP TABLE IF EXISTS Delta;");
       cStmt.executeUpdate("DROP TABLE IF EXISTS Connected;");
       cStmt.executeUpdate("CREATE TABLE Connected(Airline char(32), Origin char(32), Destination char(32), Stops INT);");
-      cStmt.executeUpdate("INSERT INTO Connected SELECT Airline, Origin, Destination, MIN(Stops) FROM Connected GROUP BY Airline, Origin, Destination ;");
+      cStmt.executeUpdate("INSERT INTO Connected SELECT Airline, Origin, Destination, MIN(Stops) FROM Curr GROUP BY Airline, Origin, Destination ;");
 
       // Close the ResultSet and Statement objects.
       stmt.close();
